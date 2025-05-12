@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Historial de Síntomas</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .success { color: green; }
+        .failure { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Historial de Síntomas</h1>
+
+    {% if symptoms %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Síntomas</th>
+                    <th>Medicamento</th>
+                    <th>Información Medicamento</th>
+                    <th>¿Alivio?</th>
+                    <th>Información Alivio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for symptom in symptoms %}
+                    <tr>
+                        <td>{{ symptom.datetime.strftime('%d-%m-%Y %H:%M') }}</td>
+                        <td>{{ symptom.symptoms }}</td>
+                        <td>
+                            {% if symptom.medication %}
+                                <span class="success">Sí</span>
+                            {% else %}
+                                <span class="failure">No</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ symptom.medication_info if symptom.medication_info else 'Ninguno' }}</td>
+                        <td>
+                            {% if symptom.relief %}
+                                <span class="success">Sí</span>
+                            {% else %}
+                                <span class="failure">No</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ symptom.relief_info if symptom.relief_info else 'Ninguna' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay entradas registradas aún.</p>
+    {% endif %}
+
+    <a href="{{ url_for('symptoms.symptoms_new') }}">Nuevos síntomas</a>
+</body>
+</html>

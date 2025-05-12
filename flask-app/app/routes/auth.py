@@ -1,69 +1,62 @@
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt, get_jwt_identity
-from datetime import datetime, timedelta
-import pytz
-
-from app.extensions import jwt
+from flask import Blueprint, render_template, redirect, url_for, flash
+from flask_login import login_user, login_required, logout_user
 from app.services.user import authenticate, register
+
+from app.forms import LoginForm, RegisterForm
+from app.models import User
+
+from app.extensions import login_manager
 
 
 auth_bp = Blueprint('auth', __name__)
 
-blacklist = set()
+login_manager.login_view = 'auth.login'
+
+# Loader para recuperar el usuario de la sesión
+@login_manager.user_loader
+def load_user(username):
+    return User.query.get(username)
 
 
-@jwt.token_in_blocklist_loader
-def check_if_token_in_blacklist(jwt_header, jwt_payload):
-    return jwt_payload['jti'] in blacklist
-
-
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    # User login
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    form = LoginForm()
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+        
+        if authenticate(username, password):
+            return redirect(url_for('symptoms.symptoms_history'))
+        else:
+            flash('Credenciales inválidas', 'danger')
     
-    # Authenticate user
-    user_authenticated = authenticate(username, password)
-    
-    if user_authenticated:
-        expires_delta = timedelta(hours=1)
-        expires_date = datetime.now(pytz.timezone('Europe/Madrid')) + expires_delta
-        access_token = create_access_token(identity={'username': username}, expires_delta=expires_delta)
-        return jsonify(token=access_token, expires_at=expires_date.isoformat(), username=username), 200
-    
-    return jsonify(message='Invalid credentials'), 401
+    return render_template('login.html', form=form)
 
 
-@auth_bp.route('/logout', methods=['POST'])
-@jwt_required()
-def logout():
-    # Logout.
-    jti = get_jwt()['jti']
-    blacklist.add(jti)
-    return jsonify(message='Logged out successfully'), 200
-
-
-@auth_bp.route('/auth')
-@jwt_required()
-def auth():
-    user = get_jwt_identity()
-    return jsonify(user), 200
-
-
-@auth_bp.route('/register', methods=['POST'])
+@auth_bp.route('/register', methods=['GET', 'POST'])
 def register_():
-    # Register new user.
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    form = RegisterForm()
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
+        
+        status = register(username, password)
+        
+        if status == 200:
+            flash('Registrado correctamente. Inicia sesión.', 'success')
+            return redirect(url_for('auth.login'))
+        elif status == 409:
+            flash('Este usuario ya existe.', 'warning')
+        else:
+            flash('Error interno del servidor.', 'danger')
     
-    status = register(username, password)
-    
-    if status == 200:
-        return jsonify(message='Registered successfully'), 200
-    elif status == 409:
-        return jsonify(message='This user already exists'), 409
-    elif status == 500:
-        return jsonify(message='Internal server error'), 500
+    return render_template('register.html', form=form)
+
+
+
+@auth_bp.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Has cerrado sesión correctamente.', 'info')
+    return redirect(url_for('auth.login'))

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Nuevos síntomas</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+    </style>
+</head>
+<body>
+  <h1>Registro de Síntomas</h1>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    
+    <div>
+      {{ form.symptoms.label }}<br>
+      {{ form.symptoms(rows=4, cols=50) }}
+    </div>
+    
+    <div>
+      {{ form.medication.label }} {{ form.medication() }}
+    </div>
+    
+    <div>
+      {{ form.medication_info.label }}<br>
+      {{ form.medication_info(size=40) }}
+    </div>
+    
+    <div>
+      {{ form.relief.label }} {{ form.relief() }}
+    </div>
+
+    <div>
+      {{ form.relief_info.label }}<br>
+      {{ form.relief_info(size=40) }}
+    </div>
+
+    <div>
+      {{ form.submit() }}
+    </div>
+  </form> 
+    <a href="{{ url_for('symptoms.symptoms_history') }}">Síntomas</a>
+</body>
+</html>

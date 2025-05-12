@@ -26,3 +26,14 @@ class User(UserMixin,db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+class SymptomLog(db.Model):
+    __tablename__ = 'symptoms'
+    id = db.Column(db.Integer, primary_key=True)
+    datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    symptoms = db.Column(db.Text, nullable=False)
+    medication = db.Column(db.Boolean, nullable=False)
+    medication_info = db.Column(db.String(255), nullable=True)
+    relief = db.Column(db.Boolean, nullable=False)
+    relief_info = db.Column(db.String(255), nullable=True)

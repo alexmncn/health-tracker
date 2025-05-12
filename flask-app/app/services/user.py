@@ -1,5 +1,6 @@
 import pytz
 from datetime import datetime
+from flask_login import login_user
 
 from app.extensions import db
 from app.models import User
@@ -8,7 +9,8 @@ from app.services.pushover_alerts import send_alert
 def authenticate(username, password):
     user = User.query.filter_by(username=username).first()
     if user and user.check_password(password):
-        try:    
+        try:
+            login_user(user)
             send_alert(f'<b>{username}</b> ha iniciado sesión.', 0) # Send login alert
             # Update last login
             User.query.filter_by(username=username).update(dict(last_login=datetime.now(pytz.timezone('Europe/Madrid'))))
