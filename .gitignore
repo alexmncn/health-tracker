@@ -1,3 +1,6 @@
+run-app.py
+gunicorn.conf.py
+
 # Bytecode y caché
 __pycache__/
 *.py[cod]
