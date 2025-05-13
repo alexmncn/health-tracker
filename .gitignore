@@ -1,2 +1,56 @@
-flask-app/app/.env
-flask-app/venv
+# Bytecode y caché
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+.pipenv/
+
+# Archivos de configuración de entorno
+*.env
+.env.*
+
+# Archivos de bases de datos
+*.sqlite3
+*.db
+
+# Archivos de logs
+*.log
+
+# Archivos generados por tests
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+
+# Archivos de instalación y compilación
+*.egg
+*.egg-info/
+dist/
+build/
+*.manifest
+*.spec
+
+# Archivos de herramientas de IDE
+.vscode/
+.idea/
+*.swp
+
+# Archivos de Docker
+*.pid
+*.sock
+
+# Archivos de Jupyter (por si acaso)
+.ipynb_checkpoints/
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Ignore la carpeta de migraciones si no la quieres versionar (Flask-Migrate)
+migrations/
