@@ -1,135 +1,121 @@
-import requests, os, sys
+import sys
+import os
+import time
+import base64
+import requests
 
+# Get the path of the directory containing the 'app' module
 app_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+
+# Add the path to sys.path
 sys.path.append(app_path)
 
-from app.config import CLOUDFLARE_API_TOKEN, DNS_ZONE_ID
-from app.services.pushover_alerts import send_alert
 
+from app.services.pushover_alerts import send_noti
 
-domains = [
-    {'name': 'tiendafleming.es', 'proxied': True, 'updated': False, 'subdomains': [
-                {'name': 'api.tiendafleming.es', 'proxied': True, 'updated': False}, 
-                {'name': 'ssh.tiendafleming.es', 'proxied': False, 'updated': False}
-            ]
-    }
-]
+from app.config import NOIP_DNS
 
-errors = []
-
-HEADERS = {
-    'Authorization': f'Bearer {CLOUDFLARE_API_TOKEN}',
-    'Content-Type': 'application/json'
-}
-
+last_public_IP = None
 
 def get_server_ip():
     response = requests.get('https://api.ipify.org?format=json')
     return response.json()['ip']
 
 
-def get_record_id(domain):
-    url = f'https://api.cloudflare.com/client/v4/zones/{DNS_ZONE_ID}/dns_records'
-    params = {'name': domain['name']}
-    response = requests.get(url, headers=HEADERS, params=params)
-    data = response.json()
-    if data['success']:
-        return data['result'][0]['id'], data['result'][0]['content'] 
-    else:
-        errors.append(f'Error obteniendo el ID del registro para {domain['name']}: {data['errors']}.')
-        return None
-
-
-def update_dns_record(record_id, domain, server_ip):
-    url = f'https://api.cloudflare.com/client/v4/zones/{DNS_ZONE_ID}/dns_records/{record_id}'
+def detect_new_public_ip():
+    global last_public_IP
+    while True:
+        public_IP = get_server_ip()
+        
+        if public_IP is not None:
+            if public_IP != last_public_IP:
+                last_public_IP = public_IP
+                
+                message = f'IP del servidor: {public_IP}'
+                send_noti(message,'default')
+                
+                try:
+                    result = update_ip_dns(public_IP)
+                    if result:
+                        message = 'Se ha actualizado la IP en el DNS.'
+                    else:
+                        message = 'La IP ya estaba actualizada.'
+                    send_noti(message,'default')
+                except Exception as e:
+                    send_noti(f'Error al actualizar la IP automaticamente: {e}', 'default')
+                    
+            time.sleep(600)
+        else:
+            time.sleep(60)
+        
+def make_get_request(url, params=None, headers=None):
+    try:
+        # Make request to the url
+        response = requests.get(url, params=params, headers=headers)
+            
+        # Check and return the status code of the request
+        if response.status_code == 200:
+            return response.status_code, response
+        else:
+            return response.status_code, f'Error {response.status_code} en la solicitud: {response.reason}'
+    except Exception as e:
+        return None, f'Error al realizar la solicitud: {e}'
     
-    data = {
-        'type': 'A',
-        'name': domain['name'],
-        'content': server_ip,
-        'ttl': 1, # auto
-        'proxied': domain['proxied']
+def update_ip_dns(new_ip):
+    url = NOIP_DNS.URL
+    
+    # Query parameters
+    params = {
+        'myip': new_ip,
+        'hostname': NOIP_DNS.HOSTNAME,
     }
-    response = requests.put(url, headers=HEADERS, json=data)
-    data = response.json()
-    if data['success']:
-        domain['updated'] = True
-        
+    
+    # Creds base64 encode
+    auth_str = f"{NOIP_DNS.USERNAME}:{NOIP_DNS.PASSWORD}"
+    auth_bytes = auth_str.encode('ascii')
+    base64_bytes = base64.b64encode(auth_bytes)
+    base64_auth_str = base64_bytes.decode('ascii')
+    
+    # HTTP headers (include encoded creds in authorization header)
+    headers = {
+        'User-Agent': 'Python-Client/1.0',
+        'Authorization': f'Basic {base64_auth_str}'
+    }
+    
+    code, response = make_get_request(url, params=params, headers=headers)
+    
+    if code == 200:
+        body = response.text.strip()
+        if body.startswith("good "):
+            return True
+        elif body.startswith("nochg "):
+            return False
+        elif body == "nohost":
+            raise Exception("NoHost")
+        elif body == "badauth":
+            raise Exception("BadAuth")
+        elif body == "badagent":
+            raise Exception("BadAgent")
+        elif body == "!donator":
+            raise Exception("NotDonator")
+        elif body == "abuse":
+            raise Exception("Abuse")
+        elif body == "911":
+            raise Exception("NineOneOne")
+        else:
+            raise Exception(f"Unknown error: {body}")
+    elif code == 401:
+        raise Exception("BadAuth")
+    elif code == None:
+        raise Exception(response)
     else:
-        errors.append(f'Error actualizando el registro DNS para {domain['name']}: {data['errors']}.')
-
-
-def send_update_status(changed_ip, server_ip):
-    if changed_ip is True:
-        alert_content = []
-        alert_priority = 0
-        
-        ip_change_info = f'La IP del server ha cambiado a <b>{server_ip}</b>.\n\n'
-        alert_content.append(ip_change_info)
-        
-        domains_updated = ''
-        n_domains_updated = 0
-        
-        for domain in domains: 
-            if domain['updated'] == True:
-                n_domains_updated +=1
-                domains_updated += f'<font color="#4a99f3">{domain['name']}</font>, '
-            
-            for subdomain in domain['subdomains']:
-                n_domains_updated +=1
-                domains_updated += f'<font color="#4a99f3">{subdomain['name']}</font>, '
-                
-                
-        if n_domains_updated == 0:
-            record_updated_info = None
-        else:
-            domains_updated = domains_updated.rstrip(', ')
-            record_updated_info = f'Se han actualizado los siguientes dominios: {domains_updated}\n'
-            alert_content.append(record_updated_info)
-        
-        if len(errors) != 0:
-            errors_info = 'Se han producido los siguientes errores:\n'
-            
-            for error in errors:
-                errors_info += f'{error}\n'
-                
-            alert_content.append(errors_info)
-            
-            if n_domains_updated == 0:
-                alert_priority = 1
-        else:
-            alert_content.append('\n<font color="#72df51">Sin errores</font>')
-        
-        message = ''.join([content for content in alert_content])
-        send_alert(message, alert_priority)
-        
+        raise Exception(f"HTTP Error {response.status_code}: {response.reason}")
     
-    
+
 def main():
-    changed_ip = False
-    
-    server_ip = get_server_ip()
-
-    main_domain = domains[0]
-
-    main_record_id, record_ip = get_record_id(main_domain)
-    
-    if main_record_id:
-        if server_ip == record_ip:
-            changed_ip = False
-        else:
-            changed_ip = True
-            update_dns_record(main_record_id, main_domain, server_ip)
-            
-            for subdomain in main_domain['subdomains']:
-                record_id, ip = get_record_id(subdomain)
-                if record_id:
-                    update_dns_record(record_id, subdomain, server_ip)
-    
-    send_update_status(changed_ip, server_ip)
-            
-        
+    detect_new_public_ip()
 
 
+# Execute the main function
 if __name__ == "__main__":
     main()
