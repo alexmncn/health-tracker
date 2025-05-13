@@ -11,7 +11,7 @@ app_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
 sys.path.append(app_path)
 
 
-from app.services.pushover_alerts import send_noti
+from app.services.pushover_alerts import send_alert
 
 from app.config import NOIP_DNS
 
@@ -26,13 +26,13 @@ def detect_new_public_ip():
     global last_public_IP
     while True:
         public_IP = get_server_ip()
-        
+        print(f'IP actual: {public_IP}')
         if public_IP is not None:
             if public_IP != last_public_IP:
                 last_public_IP = public_IP
-                
+
                 message = f'IP del servidor: {public_IP}'
-                send_noti(message,'default')
+                send_alert(message, -1)
                 
                 try:
                     result = update_ip_dns(public_IP)
@@ -40,9 +40,9 @@ def detect_new_public_ip():
                         message = 'Se ha actualizado la IP en el DNS.'
                     else:
                         message = 'La IP ya estaba actualizada.'
-                    send_noti(message,'default')
+                    send_alert(message, -1)
                 except Exception as e:
-                    send_noti(f'Error al actualizar la IP automaticamente: {e}', 'default')
+                    send_alert(f'Error al actualizar la IP automaticamente: {e}', 0)
                     
             time.sleep(600)
         else:
