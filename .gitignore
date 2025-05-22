@@ -54,6 +54,3 @@ build/
 # Archivos de sistema
 .DS_Store
 Thumbs.db
-
-# Ignore la carpeta de migraciones si no la quieres versionar (Flask-Migrate)
-migrations/
